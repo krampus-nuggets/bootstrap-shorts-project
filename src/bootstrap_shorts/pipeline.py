@@ -31,7 +31,12 @@ def run_bootstrap(
     prepare_project_dir(root, force=config.force)
 
     footage_dir = disk_footage_dir(root, config.main_import_folder)
-    LOGGER.info("Copying %s raw footage file(s) to %s", len(config.raw_footage), footage_dir)
+    LOGGER.info(
+        "Copying %s .mov file(s) from %s to %s",
+        len(config.raw_footage),
+        config.raw_footage_dir,
+        footage_dir,
+    )
     imported_files = copy_raw_footage(config.raw_footage, footage_dir)
 
     payload = build_job_payload(config, imported_files)

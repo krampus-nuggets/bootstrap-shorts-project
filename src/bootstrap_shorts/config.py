@@ -13,6 +13,7 @@ DEFAULT_MAIN_TEMPLATE = "portrait-short-form.aep"
 DEFAULT_PREPROCESS_TEMPLATE = "portrait-short-form-pre-process.aep"
 DEFAULT_MAIN_IMPORT_FOLDER = "01-footage"
 DEFAULT_PREPROCESS_IMPORT_FOLDER = "footage"
+RAW_FOOTAGE_SUFFIX = ".mov"
 
 
 class TemplatesMap(BaseModel):
@@ -20,6 +21,13 @@ class TemplatesMap(BaseModel):
 
     main: str = DEFAULT_MAIN_TEMPLATE
     pre_process: str = DEFAULT_PREPROCESS_TEMPLATE
+
+
+class TemplatesPaths(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    main: Path
+    pre_process: Path
 
 
 class ProjectFolders(BaseModel):
@@ -32,8 +40,8 @@ class ProjectFolders(BaseModel):
 class RawConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    templates: Path
-    raw_footage: list[Path] = Field(default_factory=list)
+    templates: TemplatesPaths
+    raw_footage: Path
     projects: Path
     name: str
     after_effects_exe: Path | None = None
@@ -55,9 +63,9 @@ class ResolvedConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
 
     name: str
-    templates_dir: Path
     projects_dir: Path
     project_dir: Path
+    raw_footage_dir: Path
     raw_footage: list[Path]
     main_template: Path
     preprocess_template: Path
@@ -72,6 +80,32 @@ def _resolve_path(value: Path, base: Path) -> Path:
     if not path.is_absolute():
         path = base / path
     return path.resolve()
+
+
+def discover_mov_files(directory: Path) -> list[Path]:
+    """Collect `.mov` files in `directory` (non-recursive, case-insensitive)."""
+    if not directory.is_dir():
+        raise ConfigError(f"raw_footage directory does not exist: {directory}")
+    files = [
+        path.resolve()
+        for path in directory.iterdir()
+        if path.is_file() and path.suffix.lower() == RAW_FOOTAGE_SUFFIX
+    ]
+    files.sort(key=lambda path: path.name.lower())
+    if not files:
+        raise ConfigError(f"No .mov files found in raw_footage directory: {directory}")
+    return files
+
+
+def resolve_template(path: Path, filename: str, label: str) -> Path:
+    if path.is_file():
+        return path
+    if path.is_dir():
+        candidate = (path / filename).resolve()
+        if candidate.is_file():
+            return candidate
+        raise ConfigError(f"{label} not found: {candidate}")
+    raise ConfigError(f"{label} path does not exist: {path}")
 
 
 def load_yaml(path: Path) -> dict:
@@ -92,13 +126,13 @@ def parse_raw_config(
     data: dict,
     *,
     name: str | None = None,
-    raw_footage: list[Path] | None = None,
+    raw_footage: Path | None = None,
 ) -> RawConfig:
     payload = dict(data)
     if name:
         payload["name"] = name
-    if raw_footage:
-        payload["raw_footage"] = [str(path) for path in raw_footage]
+    if raw_footage is not None:
+        payload["raw_footage"] = str(raw_footage)
     try:
         return RawConfig.model_validate(payload)
     except Exception as exc:
@@ -112,32 +146,29 @@ def resolve_config(
     force: bool = False,
 ) -> ResolvedConfig:
     base = config_dir.resolve()
-    templates_dir = _resolve_path(raw.templates, base)
     projects_dir = _resolve_path(raw.projects, base)
     after_effects_exe = (
         _resolve_path(raw.after_effects_exe, base) if raw.after_effects_exe else None
     )
 
-    if not templates_dir.is_dir():
-        raise ConfigError(f"templates directory does not exist: {templates_dir}")
     if not projects_dir.exists():
         raise ConfigError(f"projects directory does not exist: {projects_dir}")
     if not projects_dir.is_dir():
         raise ConfigError(f"projects is not a directory: {projects_dir}")
 
-    main_template = (templates_dir / raw.templates_map.main).resolve()
-    preprocess_template = (templates_dir / raw.templates_map.pre_process).resolve()
-    if not main_template.is_file():
-        raise ConfigError(f"Main template not found: {main_template}")
-    if not preprocess_template.is_file():
-        raise ConfigError(f"Pre-process template not found: {preprocess_template}")
+    main_template = resolve_template(
+        _resolve_path(raw.templates.main, base),
+        raw.templates_map.main,
+        "Main template",
+    )
+    preprocess_template = resolve_template(
+        _resolve_path(raw.templates.pre_process, base),
+        raw.templates_map.pre_process,
+        "Pre-process template",
+    )
 
-    footage: list[Path] = []
-    for item in raw.raw_footage:
-        path = _resolve_path(item, base)
-        if not path.is_file():
-            raise ConfigError(f"Raw footage file not found: {path}")
-        footage.append(path)
+    raw_footage_dir = _resolve_path(raw.raw_footage, base)
+    footage = discover_mov_files(raw_footage_dir)
 
     project_dir = (projects_dir / raw.name).resolve()
     if project_dir.exists() and not force:
@@ -147,9 +178,9 @@ def resolve_config(
 
     return ResolvedConfig(
         name=raw.name,
-        templates_dir=templates_dir,
         projects_dir=projects_dir,
         project_dir=project_dir,
+        raw_footage_dir=raw_footage_dir,
         raw_footage=footage,
         main_template=main_template,
         preprocess_template=preprocess_template,
@@ -164,7 +195,7 @@ def load_config(
     path: Path,
     *,
     name: str | None = None,
-    raw_footage: list[Path] | None = None,
+    raw_footage: Path | None = None,
     force: bool = False,
 ) -> ResolvedConfig:
     data = load_yaml(path)

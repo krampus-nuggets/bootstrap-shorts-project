@@ -23,15 +23,17 @@ def _config(tmp_path: Path, name: str = "client-short-01") -> ResolvedConfig:
     projects.mkdir()
     main = templates / "portrait-short-form.aep"
     preprocess = templates / "portrait-short-form-pre-process.aep"
-    clip = tmp_path / "clip-a.mp4"
+    footage_dir = tmp_path / "clips"
+    footage_dir.mkdir()
+    clip = footage_dir / "clip-a.mov"
     main.write_bytes(b"aep")
     preprocess.write_bytes(b"aep")
     clip.write_bytes(b"clip")
     return ResolvedConfig(
         name=name,
-        templates_dir=templates,
         projects_dir=projects,
         project_dir=projects / name,
+        raw_footage_dir=footage_dir,
         raw_footage=[clip],
         main_template=main,
         preprocess_template=preprocess,
@@ -49,8 +51,8 @@ def test_prepare_and_copy_footage(tmp_path: Path) -> None:
     copied = copy_raw_footage(config.raw_footage, dest)
 
     assert dest.is_dir()
-    assert copied == [dest / "clip-a.mp4"]
-    assert (dest / "clip-a.mp4").read_bytes() == b"clip"
+    assert copied == [dest / "clip-a.mov"]
+    assert (dest / "clip-a.mov").read_bytes() == b"clip"
     assert (config.project_dir / ".bootstrap").is_dir()
 
 

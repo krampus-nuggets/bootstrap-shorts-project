@@ -24,11 +24,8 @@ def main(
         typer.Option("--name", help="Override the new project name."),
     ] = None,
     raw_footage: Annotated[
-        list[Path] | None,
-        typer.Option(
-            "--raw-footage",
-            help="Override raw footage files. Repeat for multiple clips.",
-        ),
+        Path | None,
+        typer.Option("--raw-footage", help="Override the raw footage directory."),
     ] = None,
     force: Annotated[
         bool,
@@ -45,7 +42,7 @@ def main(
         resolved = load_config(
             config,
             name=name,
-            raw_footage=raw_footage or None,
+            raw_footage=raw_footage,
             force=force,
         )
         run_bootstrap(resolved, timeout=timeout)

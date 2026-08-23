@@ -17,8 +17,8 @@ Native **File → Dependencies → Collect Files** is not scriptable. This tool 
   <name>-pre-process.aep
   (Footage)/
     01-footage/
-      clip-a.mp4
-      clip-b.mp4
+      clip-a.mov
+      clip-b.mov
   .bootstrap/
     job.json
     result.json
@@ -47,10 +47,10 @@ This creates `.venv`, installs runtime and test dependencies, and writes `uv.loc
 Copy [config.example.yaml](config.example.yaml) to `config.yaml` (gitignored) and fill in local paths:
 
 ```yaml
-templates: "E:/path/to/templates"
-raw_footage:
-  - "E:/path/to/clip-a.mp4"
-  - "E:/path/to/clip-b.mp4"
+templates:
+  main: "E:/path/to/portrait-short-form"
+  pre_process: "E:/path/to/portrait-short-form-pre-process"
+raw_footage: "E:/path/to/raw-footage"
 projects: "E:/path/to/projects"
 name: "client-short-01"
 
@@ -67,12 +67,13 @@ project_folders:
 
 | Key | Required | Meaning |
 |---|---|---|
-| `templates` | yes | Directory that contains the two template `.aep` files |
-| `raw_footage` | yes | Array of footage files to copy and import (may be empty) |
+| `templates.main` | yes | Directory or `.aep` file for `portrait-short-form` |
+| `templates.pre_process` | yes | Directory or `.aep` file for `portrait-short-form-pre-process` |
+| `raw_footage` | yes | Directory of source clips. Only top-level `.mov` files are collected |
 | `projects` | yes | Parent directory where the new project folder is created |
 | `name` | yes | New project folder and `.aep` name (single path segment) |
 | `after_effects_exe` | no | Full path to `AfterFX.exe`. If `null`, the newest install under Program Files is used |
-| `templates_map` | no | Template filenames inside `templates` |
+| `templates_map` | no | `.aep` filenames used when a `templates.*` path is a directory |
 | `project_folders` | no | After Effects Project panel folder names for imports |
 
 Relative paths are resolved against the config file's directory.
@@ -86,14 +87,14 @@ The templates must already contain (or will get) these Project panel folders:
 
 On disk, raw clips always land in `(Footage)/<main_import>/`, which defaults to `(Footage)/01-footage/`.
 
-To use different template names or panel folders later, change `templates_map` and `project_folders`. No code change is required.
+To use different template folders or panel names later, change `templates`, `templates_map`, and `project_folders`. No code change is required. Each `templates.*` value may be a directory (joined with `templates_map`) or a direct path to an `.aep` file.
 
 ## Run
 
 ```powershell
 uv run bootstrap-shorts
 uv run bootstrap-shorts --config config.yaml
-uv run bootstrap-shorts --name other-short --raw-footage E:\clips\a.mp4 --raw-footage E:\clips\b.mp4
+uv run bootstrap-shorts --name other-short --raw-footage E:\clips\session-01
 uv run bootstrap-shorts --force
 ```
 
@@ -103,23 +104,24 @@ CLI flags override the config file:
 |---|---|
 | `--config` / `-c` | YAML config path (default `config.yaml`) |
 | `--name` | Override `name` |
-| `--raw-footage` | Override `raw_footage` (repeatable) |
+| `--raw-footage` | Override the `raw_footage` directory |
 | `--force` | Delete and replace an existing `projects/<name>` folder |
 | `--timeout` | Seconds to wait for After Effects (default `600`) |
 
 ## What happens
 
-1. Validate the config. Fail if templates, footage, or the projects parent directory are missing.
-2. Refuse to continue if `projects/<name>` already exists, unless `--force`.
-3. Create `projects/<name>/(Footage)/01-footage/` and copy every `raw_footage` file there.
-4. Write `.bootstrap/job.json` with absolute paths.
-5. Launch `AfterFX.exe -s` once. The script:
+1. Validate the config. Fail if templates, the raw footage directory, or the projects parent directory are missing.
+2. Collect every top-level `.mov` file in `raw_footage` into an in-process list (`.mp4` and other types are ignored). Fail if none are found.
+3. Refuse to continue if `projects/<name>` already exists, unless `--force`.
+4. Create `projects/<name>/(Footage)/01-footage/` and copy the discovered `.mov` files there.
+5. Write `.bootstrap/job.json` with absolute paths.
+6. Launch `AfterFX.exe -s` once. The script:
    - opens the main template and saves it as `<name>.aep`
    - imports the copied files into `01-footage`
    - copies any other template `FileSource` footage into `(Footage)/<panel-folder>/` and relinks it
    - opens the pre-process template and saves it as `<name>-pre-process.aep`
    - imports the same files into `footage`
-6. Python reads `.bootstrap/result.json` and exits non-zero if After Effects reported errors.
+7. Python reads `.bootstrap/result.json` and exits non-zero if After Effects reported errors.
 
 After Effects is left running. The launcher does not pass `-project` together with the script (that combination is unreliable).
 
@@ -130,7 +132,8 @@ After Effects is left running. The launcher does not pass `-project` together wi
 | Missing `config.yaml` or invalid YAML | CLI error |
 | Unknown config key | CLI error (`extra: forbid`) |
 | Missing template `.aep` | CLI error |
-| Missing raw footage file | CLI error |
+| Missing raw footage directory | CLI error |
+| No `.mov` files in `raw_footage` | CLI error |
 | Duplicate footage filenames | CLI error |
 | `projects/<name>` already exists | CLI error; pass `--force` to replace |
 | `AfterFX.exe` not found | CLI error; set `after_effects_exe` |
