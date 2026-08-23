@@ -9,6 +9,8 @@ Python (managed with [uv](https://docs.astral.sh/uv/)) prepares the project fold
 
 Native **File → Dependencies → Collect Files** is not scriptable. This tool copies and relinks footage directly into the new project root instead of creating a temporary `<name>-deps` folder.
 
+**NOTE:** This bootstrapping CLI is very specific to my own content pipeline. It solves a repetitive issue for how I start short-form content projects and how I manage my footage.
+
 ## Resulting layout
 
 ```text
@@ -26,8 +28,8 @@ Native **File → Dependencies → Collect Files** is not scriptable. This tool 
 
 ## Requirements
 
-- Windows 10
 - [uv](https://docs.astral.sh/uv/)
+- Windows 10
 - Python 3.11+ (uv will install it if needed)
 - Adobe After Effects with both template `.aep` files
 - In After Effects: **Preferences → Scripting & Expressions → Allow Scripts to Write Files and Access Network**
