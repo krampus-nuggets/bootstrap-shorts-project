@@ -12,6 +12,7 @@ from bootstrap_shorts.ae_bridge import DEFAULT_TIMEOUT_SECONDS
 from bootstrap_shorts.config import load_config
 from bootstrap_shorts.errors import BootstrapError
 from bootstrap_shorts.pipeline import run_bootstrap
+from bootstrap_shorts.select_footage import select_raw_footage
 
 
 def main(
@@ -31,6 +32,14 @@ def main(
         bool,
         typer.Option("--force", help="Replace an existing project directory."),
     ] = False,
+    yes: Annotated[
+        bool,
+        typer.Option(
+            "--yes",
+            "-y",
+            help="Process every discovered .mov file without prompting.",
+        ),
+    ] = False,
     timeout: Annotated[
         float,
         typer.Option("--timeout", help="Seconds to wait for After Effects to finish."),
@@ -45,6 +54,12 @@ def main(
             raw_footage=raw_footage,
             force=force,
         )
+        selected = select_raw_footage(
+            resolved.raw_footage,
+            directory=resolved.raw_footage_dir,
+            assume_yes=yes,
+        )
+        resolved = resolved.model_copy(update={"raw_footage": selected})
         run_bootstrap(resolved, timeout=timeout)
     except BootstrapError as exc:
         typer.secho(str(exc), fg="red", err=True)

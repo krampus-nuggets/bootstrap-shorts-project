@@ -96,7 +96,17 @@ uv run bootstrap-shorts
 uv run bootstrap-shorts --config config.yaml
 uv run bootstrap-shorts --name other-short --raw-footage E:\clips\session-01
 uv run bootstrap-shorts --force
+uv run bootstrap-shorts --yes
 ```
+
+After discovery, the CLI lists every `.mov` file and waits for a selection:
+
+```text
+Select files to process [all]: 1,3
+Process these files? [Y/n]: y
+```
+
+Accepted selection values: `all`, `1,3`, `1-3`, or `q` to cancel. `--yes` skips this prompt and processes every discovered file.
 
 CLI flags override the config file:
 
@@ -106,22 +116,24 @@ CLI flags override the config file:
 | `--name` | Override `name` |
 | `--raw-footage` | Override the `raw_footage` directory |
 | `--force` | Delete and replace an existing `projects/<name>` folder |
+| `--yes` / `-y` | Process every discovered `.mov` file without prompting |
 | `--timeout` | Seconds to wait for After Effects (default `600`) |
 
 ## What happens
 
 1. Validate the config. Fail if templates, the raw footage directory, or the projects parent directory are missing.
 2. Collect every top-level `.mov` file in `raw_footage` into an in-process list (`.mp4` and other types are ignored). Fail if none are found.
-3. Refuse to continue if `projects/<name>` already exists, unless `--force`.
-4. Create `projects/<name>/(Footage)/01-footage/` and copy the discovered `.mov` files there.
-5. Write `.bootstrap/job.json` with absolute paths.
-6. Launch `AfterFX.exe -s` once. The script:
+3. List the discovered files, let you select which to process, and confirm that set (unless `--yes`).
+4. Refuse to continue if `projects/<name>` already exists, unless `--force`.
+5. Create `projects/<name>/(Footage)/01-footage/` and copy the selected `.mov` files there.
+6. Write `.bootstrap/job.json` with absolute paths.
+7. Launch `AfterFX.exe -s` once. The script:
    - opens the main template and saves it as `<name>.aep`
    - imports the copied files into `01-footage`
    - copies any other template `FileSource` footage into `(Footage)/<panel-folder>/` and relinks it
    - opens the pre-process template and saves it as `<name>-pre-process.aep`
    - imports the same files into `footage`
-7. Python reads `.bootstrap/result.json` and exits non-zero if After Effects reported errors.
+8. Python reads `.bootstrap/result.json` and exits non-zero if After Effects reported errors.
 
 After Effects is left running. The launcher does not pass `-project` together with the script (that combination is unreliable).
 
@@ -134,6 +146,7 @@ After Effects is left running. The launcher does not pass `-project` together wi
 | Missing template `.aep` | CLI error |
 | Missing raw footage directory | CLI error |
 | No `.mov` files in `raw_footage` | CLI error |
+| Footage selection cancelled | CLI error |
 | Duplicate footage filenames | CLI error |
 | `projects/<name>` already exists | CLI error; pass `--force` to replace |
 | `AfterFX.exe` not found | CLI error; set `after_effects_exe` |

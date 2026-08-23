@@ -19,3 +19,7 @@ class AfterFXNotFoundError(BootstrapError):
 
 class AfterEffectsJobError(BootstrapError):
     """After Effects did not complete the job successfully."""
+
+
+class SelectionAborted(BootstrapError):
+    """The user cancelled footage selection."""

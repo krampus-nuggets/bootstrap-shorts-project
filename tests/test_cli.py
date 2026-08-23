@@ -14,3 +14,4 @@ def test_help() -> None:
     assert "--config" in result.stdout
     assert "--raw-footage" in result.stdout
     assert "--force" in result.stdout
+    assert "--yes" in result.stdout
