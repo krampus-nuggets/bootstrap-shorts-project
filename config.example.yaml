@@ -1,0 +1,20 @@
+# Copy this file to config.yaml and fill in machine-specific paths.
+# config.yaml is gitignored.
+
+templates: "E:/path/to/templates"
+raw_footage:
+  - "E:/path/to/clip-a.mp4"
+  - "E:/path/to/clip-b.mp4"
+projects: "E:/path/to/projects"
+name: "client-short-01"
+
+# Optional. Leave null to auto-detect the newest AfterFX.exe under Program Files.
+after_effects_exe: null
+
+templates_map:
+  main: "portrait-short-form.aep"
+  pre_process: "portrait-short-form-pre-process.aep"
+
+project_folders:
+  main_import: "01-footage"
+  preprocess_import: "footage"
