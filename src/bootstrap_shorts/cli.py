@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-import logging
 from pathlib import Path
 from typing import Annotated
 
 import typer
+from rich.console import Console
 
 from bootstrap_shorts.ae_bridge import DEFAULT_TIMEOUT_SECONDS
 from bootstrap_shorts.config import load_config
@@ -14,7 +14,10 @@ from bootstrap_shorts.errors import BootstrapError
 from bootstrap_shorts.pipeline import run_bootstrap
 from bootstrap_shorts.select_footage import select_raw_footage
 
+app = typer.Typer(rich_markup_mode="rich", add_completion=False)
 
+
+@app.command()
 def main(
     config: Annotated[
         Path,
@@ -26,7 +29,7 @@ def main(
     ] = None,
     raw_footage: Annotated[
         Path | None,
-        typer.Option("--raw-footage", help="Override the raw footage directory."),
+        typer.Option("--raw-footage", help="Override the raw footage root directory."),
     ] = None,
     force: Annotated[
         bool,
@@ -37,7 +40,7 @@ def main(
         typer.Option(
             "--yes",
             "-y",
-            help="Process every discovered .mov file without prompting.",
+            help="Process every .mov file in the footage root directory without prompting.",
         ),
     ] = False,
     timeout: Annotated[
@@ -46,7 +49,7 @@ def main(
     ] = DEFAULT_TIMEOUT_SECONDS,
 ) -> None:
     """Bootstrap a new After Effects shorts project from templates."""
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+    console = Console()
     try:
         resolved = load_config(
             config,
@@ -55,19 +58,15 @@ def main(
             force=force,
         )
         selected = select_raw_footage(
-            resolved.raw_footage,
-            directory=resolved.raw_footage_dir,
+            resolved.raw_footage_dir,
             assume_yes=yes,
+            console=console,
         )
         resolved = resolved.model_copy(update={"raw_footage": selected})
-        run_bootstrap(resolved, timeout=timeout)
+        run_bootstrap(resolved, timeout=timeout, console=console)
     except BootstrapError as exc:
-        typer.secho(str(exc), fg="red", err=True)
+        Console(stderr=True).print(f"[red]{exc}[/red]")
         raise typer.Exit(code=1) from exc
-
-
-def app() -> None:
-    typer.run(main)
 
 
 if __name__ == "__main__":

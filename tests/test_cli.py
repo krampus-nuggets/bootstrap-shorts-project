@@ -1,11 +1,8 @@
-import typer
 from typer.testing import CliRunner
 
-from bootstrap_shorts.cli import main
+from bootstrap_shorts.cli import app
 
 runner = CliRunner()
-app = typer.Typer()
-app.command()(main)
 
 
 def test_help() -> None:

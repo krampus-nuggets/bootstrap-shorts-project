@@ -89,11 +89,11 @@ def discover_mov_files(directory: Path) -> list[Path]:
     files = [
         path.resolve()
         for path in directory.iterdir()
-        if path.is_file() and path.suffix.lower() == RAW_FOOTAGE_SUFFIX
+        if path.is_file()
+        and not path.name.startswith(".")
+        and path.suffix.lower() == RAW_FOOTAGE_SUFFIX
     ]
     files.sort(key=lambda path: path.name.lower())
-    if not files:
-        raise ConfigError(f"No .mov files found in raw_footage directory: {directory}")
     return files
 
 
@@ -168,7 +168,8 @@ def resolve_config(
     )
 
     raw_footage_dir = _resolve_path(raw.raw_footage, base)
-    footage = discover_mov_files(raw_footage_dir)
+    if not raw_footage_dir.is_dir():
+        raise ConfigError(f"raw_footage directory does not exist: {raw_footage_dir}")
 
     project_dir = (projects_dir / raw.name).resolve()
     if project_dir.exists() and not force:
@@ -181,7 +182,7 @@ def resolve_config(
         projects_dir=projects_dir,
         project_dir=project_dir,
         raw_footage_dir=raw_footage_dir,
-        raw_footage=footage,
+        raw_footage=[],
         main_template=main_template,
         preprocess_template=preprocess_template,
         after_effects_exe=after_effects_exe,

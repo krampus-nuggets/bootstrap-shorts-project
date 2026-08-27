@@ -55,10 +55,8 @@ def _templates(layout: dict[str, Path]) -> dict[str, str]:
     }
 
 
-def test_load_config_discovers_mov_files(tmp_path: Path) -> None:
+def test_load_config_resolves_paths(tmp_path: Path) -> None:
     layout = _layout(tmp_path)
-    extra = layout["footage"] / "clip-c.MOV"
-    extra.write_bytes(b"mov")
     config_path = _write_config(
         tmp_path,
         {
@@ -75,7 +73,7 @@ def test_load_config_discovers_mov_files(tmp_path: Path) -> None:
     assert resolved.main_template == layout["main"].resolve()
     assert resolved.preprocess_template == layout["preprocess"].resolve()
     assert resolved.raw_footage_dir == layout["footage"].resolve()
-    assert resolved.raw_footage == [layout["clip"].resolve(), extra.resolve()]
+    assert resolved.raw_footage == []
     assert resolved.project_dir == (layout["projects"] / "client-short-01").resolve()
     assert resolved.main_import_folder == "01-footage"
     assert resolved.preprocess_import_folder == "footage"
@@ -103,7 +101,7 @@ def test_relative_paths_resolve_against_config_dir(tmp_path: Path) -> None:
     assert resolved.main_template == layout["main"].resolve()
     assert resolved.preprocess_template == layout["preprocess"].resolve()
     assert resolved.raw_footage_dir == layout["footage"].resolve()
-    assert resolved.raw_footage[0] == layout["clip"].resolve()
+    assert resolved.raw_footage == []
 
 
 def test_template_file_paths_are_accepted(tmp_path: Path) -> None:
@@ -145,14 +143,17 @@ def test_cli_overrides_win(tmp_path: Path) -> None:
 
     assert resolved.name == "from-cli"
     assert resolved.raw_footage_dir == override.resolve()
-    assert resolved.raw_footage == [extra.resolve()]
+    assert resolved.raw_footage == []
     assert resolved.project_dir == (layout["projects"] / "from-cli").resolve()
 
 
 def test_discover_mov_skips_non_mov(tmp_path: Path) -> None:
     layout = _layout(tmp_path)
+    hidden = layout["footage"] / ".hidden.mov"
+    hidden.write_bytes(b"mov")
     found = discover_mov_files(layout["footage"])
     assert found == [layout["clip"].resolve()]
+    assert hidden not in found
 
 
 def test_missing_key_is_invalid() -> None:
@@ -222,7 +223,7 @@ def test_missing_footage_directory(tmp_path: Path) -> None:
         resolve_config(raw, config_dir=tmp_path)
 
 
-def test_no_mov_files(tmp_path: Path) -> None:
+def test_empty_footage_directory_is_valid(tmp_path: Path) -> None:
     layout = _layout(tmp_path)
     empty = tmp_path / "empty"
     empty.mkdir()
@@ -235,8 +236,38 @@ def test_no_mov_files(tmp_path: Path) -> None:
         }
     )
 
-    with pytest.raises(ConfigError, match="No .mov files found"):
-        resolve_config(raw, config_dir=tmp_path)
+    resolved = resolve_config(raw, config_dir=tmp_path)
+    assert resolved.raw_footage_dir == empty.resolve()
+    assert resolved.raw_footage == []
+
+
+def test_footage_root_with_only_subdirs_is_valid(tmp_path: Path) -> None:
+    layout = _layout(tmp_path)
+    root = tmp_path / "nested-root"
+    nested = root / "session-01"
+    nested.mkdir(parents=True)
+    clip = nested / "nested.mov"
+    clip.write_bytes(b"mov")
+    raw = parse_raw_config(
+        {
+            "templates": _templates(layout),
+            "raw_footage": str(root),
+            "projects": str(layout["projects"]),
+            "name": "nested-only",
+        }
+    )
+
+    resolved = resolve_config(raw, config_dir=tmp_path)
+    assert resolved.raw_footage_dir == root.resolve()
+    assert resolved.raw_footage == []
+    assert discover_mov_files(root) == []
+    assert discover_mov_files(nested) == [clip.resolve()]
+
+
+def test_discover_mov_empty_directory(tmp_path: Path) -> None:
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    assert discover_mov_files(empty) == []
 
 
 def test_existing_project_dir_without_force(tmp_path: Path) -> None:
